@@ -1,0 +1,208 @@
+---
+title: "HW3"
+author: "Zhikang Dong zd2241"
+date: "4/3/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Exercise 1
+
+## 1.
+
+```{r}
+data <- faithful
+kde <- function(data = data[,2], h, kernel){
+  n <- length(data)
+  x <- seq(min(data), max(data), length.out = 512)
+  if(kernel=="uniform"){
+    return(list(x=x, y = sapply(x, function(x){
+      u <- (x-data)/h
+      1/(n*h)*sum(ifelse(abs(u)>1, 0, 0.5))
+    })
+    )
+    )
+  }
+  if(kernel == "epanechnikov"){
+    return(list(x=x, y = sapply(x, function(x){
+      u <- (x-data)/h
+      1/(n*h)*sum(ifelse(abs(u)>1, 0, 3*(1-u^2)/4))
+    })))
+  }
+  if(kernel == "gaussian"){
+    return(list(x=x,
+                y = sapply(x, function(x){
+                  u <- (x-data)/h
+                  1/(n*h)*sum(ifelse(abs(u)>1, 0, 1/sqrt(2*pi)*exp(-.5*u^2)))
+                })))
+  }
+}
+kde_epa <- kde(data[,2], h=4, kernel = "epanechnikov")
+kde_uni <- kde(data[,2], h=4, kernel = "uniform")
+kde_gau <- kde(data[,2], h=4, kernel = "gaussian")
+
+plot(x=kde_epa$x,y=kde_epa$y,'l',xlab = "x", ylab = "y_hat" ,col = 'red')
+lines(x=kde_uni$x,y=kde_uni$y,'l', col = 'blue')
+lines(x=kde_gau$x,y=kde_gau$y,'l', col = 'green')
+
+#kde_uni <- density(data[,2], bw = 4, kernel = "rectangular")
+#plot(kde_uni, main = "Kernel Density Estimator", col='blue')
+
+#kde_epa <- density(data[,2], bw = 4, kernel = "epanechnikov")
+#lines(kde_epa, col = 'red')
+
+#kde_gau <- density(data[,2], bw = 4, kernel = "gaussian")
+#lines(kde_gau, col = 'green')
+legend(45, .038,legend = c("Epanechnikov","Uniform", "Gaussian"), 
+       col = c("red", "blue", "green"), lty = 1:1)
+```
+## 2. 
+```{r}
+par(mfrow=c(2, 2))
+h <- array(seq(1, 10, length.out = 4))
+sapply(h, function(x) plot(kde(data[,2], h=x, kernel = "epanechnikov")$x, kde(data[,2], h=x, kernel = "epanechnikov")$y,main="Epanechnikov Kernel", "l", xlab = "x", ylab = "y_hat"))
+
+par(mfrow=c(2, 2))
+sapply(h, function(x) plot(kde(data[,2], h=x, kernel = "uniform")$x, kde(data[,2], h=x, kernel = "uniform")$y,main="Uniform Kernel", "l", xlab = "x", ylab = "y_hat"))
+
+par(mfrow=c(2, 2))
+sapply(h, function(x) plot(kde(data[,2], h=x, kernel = "gaussian")$x, kde(data[,2], h=x, kernel = "gaussian")$y,main="Gaussian Kernel", "l", xlab = "x", ylab = "y_hat"))
+```
+
+## 3.
+```{r}
+B <- 5000
+estimate <- matrix(NA, nrow = 512, ncol = B)
+for (b in 1:B){
+  qstar <- sample(data[,2], replace = T)
+  dstar <- kde(qstar, h=4, kernel = "epanechnikov")
+  estimate[,b] <- dstar$y
+}
+CI <- apply(estimate, 1, quantile, probs = c(.025, .972))
+plot(kde_epa,main="Epanechnikov Kernel", xlab = "x", ylab = "y")
+xshade <- c(kde_epa$x, rev(kde_epa$x))
+yshade <- c(CI[2,], rev(CI[1,]))
+polygon(xshade, yshade, border = NA, col = adjustcolor("lightblue", .4))
+```
+
+# Exercise 2
+## 1.
+
+
+```{r}
+local_poly <- function(data, h){
+  x <- seq(0, 1, length.out = 200)
+  y <- vector()
+  for (i in length(x)){
+    fit_data <- data.frame(linear=x[i]-data[,1],
+                           quadratic = (data[,1]-x[i])^2,
+                           cubic = (x[i]-data[,1])^3,
+                           y = data[,2])
+    weight <- sapply(x[i]-data[, 1], function(x){
+      u <- x/h
+      ifelse(abs(u)>1, 0, 3*(1-u^2)/4)
+    })
+    model <- lm(y~., data = fit_data, weights = 1/h*weight)
+    y <- append(y, predict(model, fit_data))
+  }
+  return(data.frame(x=x, y = y))
+}
+
+#sapply(0-train_x, function(x){
+#  u <- x/4
+#  ifelse(abs(u)>1, 0, 3*(1-u^2)/4)
+#})
+
+train_x <- seq(-3, 3, length.out = 100)
+train_y <- 1+.5*train_x-3*train_x^2+train_x^3
+plot(train_x, train_y, "l")
+local <- local_poly(data.frame(train_x, train_y), 4)
+lines(local$x, local$y, col="red")
+
+
+
+```
+
+
+```{r}
+library(KernSmooth)
+plot(train_x, train_y, "l", lwd=3)
+l <- locpoly(train_x, train_y, degree = 0, kernel = "epanechnikov", bandwidth = 4)
+points(l$x, l$y, col="red")
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+
+library(KernSmooth)
+library(ibr)
+library(MASS)
+library(dplyr)
+
+mse.loclin <- function (df, h, p) {
+  smp_siz <- floor(p*nrow(df)) 
+  train_ind <-  sample(seq_len(nrow(df)),size = smp_siz)
+  trainData <- df[train_ind,] 
+  testData <- df[-train_ind,]
+  lp <- npregress(x=trainData$x, y=trainData$y, kernel = "e", bandwidth=h)
+  predicted <- predict(lp, testData)
+  return (sum((predicted-testData$y)^2)/nrow(testData))
+}
+
+mse.kfold.loclin <- function (df, h, k) {
+  folds <- cut(seq(1,nrow(df)),breaks=k,labels=FALSE)
+  total.error <- 0
+  for(i in 1:k){
+    #Segment the data
+    testIndexes <- which(folds==i,arr.ind=TRUE)
+    testData <- df[testIndexes, ]
+    trainData <- df[-testIndexes, ]
+    
+    lp <- npregress(x=train$x, y=train$y, kernel = "e", bandwidth=h)
+    predicted <- predict(lp, test)
+    fold.error <- sum((predicted-trainData)^2)
+    total.error <- total.error + fold.error
+  }
+  return (total.error/k)
+}
+
+optim.bandwith <- function(df, k) {
+  
+  bandwidth.grid <- seq(0, 2, length.out = 50)
+  #bandwidth.grid <- 2.^seq(-8, 3, by = 0.1)
+  bandwidth.result <- rep(0,length(bandwidth.grid))
+  for (i in 1:length(bandwidth.grid)) {
+    h <- bandwidth.grid[i]
+    bandwidth.result[i] <- mse.kfold.loclin(df, h, k)
+  }
+  return (bandwidth.grid[which.max(bandiwdth.result)])
+}
+
+df <- mcycle %>% rename(x = times, y = accel) #data
+
+set.seed(0)
+x <- runif(100)
+y <- qnorm(x)+runif(1, min=-3,max=3)
+data <- matrix()
+lp <- locpoly(y ~ x, data = train, bw = h, kernel = "epanechnikov", deg=1)
+predict.npregress(lp, test)
+
+
+##Datasts
+n <- 200 # sample size of each dataset
+m <- 500 # number of daasets
+
+
+for (i in 1:m) {
+  x <- runif(n)
+  eps <- rnorm(n)
+  y <- sin(2*x-1)+2*exp(-16*(x-0.5)^2)+eps
+}
+
+```
