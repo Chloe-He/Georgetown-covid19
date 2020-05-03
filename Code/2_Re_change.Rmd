@@ -1,0 +1,79 @@
+---
+title: "Re change"
+author: "Kevin Cho - kc331"
+date: "4/25/2020"
+output: pdf_document
+---
+
+```{r}
+library(ggplot2)
+df_new <- read.csv("df_new.csv",  header = TRUE)
+df_new$change.pct <- 0
+df_new$change <- 0
+number_of_states = length(unique(df_new$State))
+df_new$Date = as.Date(df_new$Date)
+for (i in (1:number_of_states)){  
+  df_new[which(df_new$State==unique(df_new$State)[i]),]$change =
+    ifelse(df_new[df_new$State==unique(df_new$State)[i],]$lockdown == 1,
+   df_new[which(df_new$State==unique(df_new$State)[i] & df_new$lockdown == 1),]$Daily_R0[1]
+   -df_new[which(df_new$State==unique(df_new$State)[i] 
+                 & df_new$lockdown == 1 
+                 & df_new$Date== df_new[which(df_new$State==unique(df_new$State)[i] & df_new$lockdown == 1),]$Date[1] +5),]$Daily_R0[1]
+   ,0)
+ df_new[which(df_new$State==unique(df_new$State)[i]),]$change.pct =
+    ifelse(df_new[df_new$State==unique(df_new$State)[i],]$lockdown == 1,
+   (df_new[which(df_new$State==unique(df_new$State)[i] & df_new$lockdown == 1),]$Daily_R0[1]
+   -df_new[which(df_new$State==unique(df_new$State)[i] 
+                 & df_new$lockdown == 1 
+                 & df_new$Date== df_new[which(df_new$State==unique(df_new$State)[i] 
+                 & df_new$lockdown == 1),]$Date[1] +5),]$Daily_R0[1])/df_new[which(df_new$State==unique(df_new$State)[i] & df_new$lockdown == 1),]$Daily_R0[1] * 100
+   ,0)
+}
+
+length(unique(df_new$change[df_new$change!=0]))
+length(unique(df_new$change.pct[df_new$change.pct!=0]))
+df_new$change.pct <- as.numeric(df_new$change.pct)
+#hist(unique(df_new$change.pct)[-1])
+
+change.pct <- unique(df_new$change.pct)[-1]
+change_data <- data.frame(change.pct)
+
+ggplot(change_data, aes(x=unique(change.pct)))+geom_histogram(color="darkblue", fill="lightblue",  bins = 10)+labs(title= "Percentage Change for immediate effect",y="Count", x="Percentage of Change")
+
+```
+
+
+```{r}
+
+df_new$R0.req <- 0
+df_new$days.req <- 0
+
+
+for (i in (1:number_of_states)){  
+  df_new[df_new$State==unique(df_new$State)[i],]$R0.req =
+    ifelse( df_new[df_new$State==unique(df_new$State)[i],]$lockdown ==1, df_new[which(df_new$State==unique(df_new$State)[i]&df_new$lockdown==1)[1],]$Daily_R0*0.5 ,0)
+}
+
+length(unique(df_new$R0.req[df_new$R0.req!=0]))
+
+for (i in (1:number_of_states)){  
+  df_new[df_new$State==unique(df_new$State)[i],]$days.req =
+    ifelse(df_new[df_new$State==unique(df_new$State)[i],]$Daily_R0 <= df_new[df_new$State==unique(df_new$State)[i],]$R0.req,
+as.numeric(df_new[which(df_new$State==unique(df_new$State)[i] & df_new$Daily_R0 <= df_new$R0.req & df_new$lockdown == 1)[1],]$Date) -as.numeric(df_new[which(df_new$State==unique(df_new$State)[i] & df_new$lockdown == 1)[1],]$Date),0)
+}
+
+for (i in (1:number_of_states)){  
+  df_new[df_new$State==unique(df_new$State)[i],]$days.req =
+    ifelse(which(df_new[df_new$State==unique(df_new$State)[i],]$Daily_R0 <= df_new[df_new$State==unique(df_new$State)[i],]$R0.req)[1],
+as.numeric(df_new[which(df_new$State==unique(df_new$State)[i] & df_new$Daily_R0 <= df_new$R0.req & df_new$lockdown == 1)[1],]$Date) -as.numeric(df_new[which(df_new$State==unique(df_new$State)[i] & df_new$lockdown == 1)[1],]$Date),0)
+}
+
+days_needed = 0
+for (i in (1:number_of_states)){ 
+  days_needed = cbind(days_needed,df_new[which(df_new$State==unique(df_new$State)[i]),]$days.req[1])
+}
+days_needed = days_needed[-1]
+days_data <- data.frame(days_needed)
+
+ggplot(days_data, aes(x=days_needed))+geom_histogram(color="darkblue", fill="lightblue",  bins = 15, na.rm = TRUE) +labs(title= "Number of Days needed for lock down to be effective",y="Count", x="Number of Days needed")
+```

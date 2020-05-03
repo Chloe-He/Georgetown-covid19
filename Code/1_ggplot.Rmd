@@ -1,0 +1,60 @@
+---
+title: "Untitled"
+author: "Shan He"
+date: "4/25/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+setwd("~/Desktop/COVID-19/clean_cases")
+df = read.csv("county_case_with_TWdailyR0_2020-04-24.csv")
+df = aggregate(df$daily_r,by=list(df$state,df$date),FUN=mean)
+colnames(df) = c("State","Date","Daily_R0")
+df = df[order(df$State),]
+#write.csv(df_new,"df_new.csv")
+```
+
+```{r}
+library(dplyr);library(zoo)
+cleaner = read.csv("~/Desktop/georgetown_project/cleaner.csv")
+temp = cleaner[,c(2,3,8,9)]
+colnames(temp) = c("State","Date","gather","lockdown")
+df_new = full_join(df,temp,by=c("State","Date"))
+
+number_of_states = length(unique(df_new$State))
+for (i in (1:number_of_states)){  
+  df_new[df_new$State==unique(df_new$State)[i],]$gather = na.locf(df_new[df_new$State==unique(df_new$State)[i],]$gather,fromLast=FALSE,na.rm=FALSE)
+}
+
+for (i in (1:number_of_states)){  
+  df_new[df_new$State==unique(df_new$State)[i],]$lockdown = na.locf(df_new[df_new$State==unique(df_new$State)[i],]$lockdown,fromLast=FALSE,na.rm=FALSE)
+}
+
+df_new = na.omit(df_new)
+write.csv(df_new,"aa.csv")
+```
+
+```{r}
+library(ggplot2)
+number_of_state = length(unique(df_new$State))
+#p <- list()
+for (i in 1:number_of_state){
+  subset = subset(df_new,df_new$State==unique(df_new$State)[i])
+  subset$gather = as.factor(subset$gather)
+  p = ggplot(subset, aes(Date, Daily_R0)) +
+    geom_point(data = subset, aes(y = Daily_R0), size = 3)+
+    theme(axis.text.x=element_text(angle=90,size=7))+
+    ggtitle(paste0("COVID-19 Effective Reproduction Number (Re) over time for ",subset$State[1]))+
+    geom_point(aes(colour=factor(gather)))+
+    labs(colour = "Gathering Restriction")
+  print(p)
+}
+#library(gridExtra)
+#grid.arrange(grobs=p,ncol=5)
+
+```
+
+
+
